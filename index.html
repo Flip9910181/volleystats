@@ -4291,132 +4291,75 @@ function closeModal(id){
    NUMPAD
    ========================================================= */
 
-function handleKeyboard(e){
+function handleKeyboard(e) {
+    if (e.repeat) return;
 
-  /*
-    Keine Eingabe während Textfelder bearbeitet werden.
-  */
+    const key = e.key;
 
-  const tag=e.target?.tagName;
-
-  if(
-    tag==="INPUT" ||
-    tag==="TEXTAREA" ||
-    tag==="SELECT"
-  ){
-    return;
-  }
-
-  if(state.page!=="live") return;
-
-  const game=getGame();
-
-  if(!game || game.finished) return;
-
-
-  /*
-    0 = Gegnerfehler
-  */
-
-  if(e.key==="0"){
-    e.preventDefault();
-    openOpponentErrorModal();
-    return;
-  }
-
-
-  /*
-    Spieler auswählen
-  */
-
-  if(e.key>="1" && e.key<="9"){
-
-    const number=Number(e.key);
-
-    if(e.shiftKey){
-
-      const playerIndex=9+number;
-
-      selectPlayerByRosterIndex(playerIndex);
-
-      return;
+    // 0 = Gegnerfehler
+    if (key === "0") {
+        recordOpponentError();
+        state.selectedPlayer = null;
+        state.selectedCategory = null;
+        renderLive();
+        return;
     }
 
-    /*
-      Ohne Shift zunächst Spieler 1-9.
-      Kategorie wird gewählt, wenn bereits Spieler ausgewählt wurde
-      und die entsprechende Kategorie noch nicht ausgewählt ist.
-    */
-
-    if(!state.selectedPlayer){
-
-      selectPlayerByRosterIndex(number);
-
-      return;
+    // Shift + 1–5 = Spieler 10–14
+    if (e.shiftKey && ["1", "2", "3", "4", "5"].includes(key)) {
+        const rosterIndex = 9 + Number(key);
+        selectPlayerByRosterIndex(rosterIndex);
+        state.selectedCategory = null;
+        renderLive();
+        return;
     }
 
-    /*
-      Wenn Spieler schon gewählt ist:
-      1-5 = Kategorie
-    */
+    // Nur normale Zahlen 1–9
+    if (!/^[1-9]$/.test(key)) return;
 
-    if(number<=5){
+    const number = Number(key);
 
-      const categories=[
-        "attack",
-        "reception",
-        "serve",
-        "block",
-        "defense"
-      ];
-
-      state.selectedCategory=categories[number-1];
-
-      renderLive();
-
-      return;
+    // SCHRITT 1: Spieler auswählen
+    if (!state.selectedPlayer) {
+        if (number >= 1 && number <= 9) {
+            selectPlayerByRosterIndex(number - 1);
+            state.selectedCategory = null;
+            renderLive();
+        }
+        return;
     }
 
-    /*
-      Ergebnis
-    */
-
-    if(state.selectedCategory){
-
-      const results=
-        ACTION_DEFINITIONS[state.selectedCategory].results;
-
-      const index=number-1;
-
-      if(results[index]){
-
-        recordAction(
-          state.selectedCategory,
-          results[index].key
-        );
-
-      }
-
+    // SCHRITT 2: Kategorie auswählen
+    if (!state.selectedCategory) {
+        if (number >= 1 && number <= 5) {
+            const categories = ["attack", "reception", "serve", "block", "defense"];
+            state.selectedCategory = categories[number - 1];
+            renderLive();
+        }
+        return;
     }
 
-  }
+    // SCHRITT 3: Ergebnis auswählen
+    const resultCounts = {
+        attack: 4,
+        reception: 3,
+        serve: 4,
+        block: 3,
+        defense: 3
+    };
 
-}
+    const maxResults = resultCounts[state.selectedCategory];
 
-function selectPlayerByRosterIndex(index){
+    if (number >= 1 && number <= maxResults) {
+        recordAction(state.selectedCategory, number - 1);
 
-  const roster=getRoster();
+        // Nach jeder Aktion komplett zurücksetzen:
+        // nächste Zahl wählt wieder einen Spieler
+        state.selectedPlayer = null;
+        state.selectedCategory = null;
 
-  const player=roster[index-1];
-
-  if(!player){
-    showToast("Kein Spieler mit dieser Numpad-Nummer.");
-    return;
-  }
-
-  state.selectedPlayer=player.id;
-
-  renderLive();
+        renderLive();
+    }
 }
 
 
